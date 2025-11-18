@@ -86,13 +86,18 @@ export default function SlugPage() {
 
   // Extract operation and spec for CodeEditor (must be before any conditional returns)
   const operation = useMemo(() => {
-    if (!endpointKey || !openApiSpec['x-ui-config']?.endpoints?.[endpointKey]) {
+    if (!endpointKey || !openApiSpec['x-ui-config']?.endpoints) {
       return undefined
     }
-    const uiConfig = openApiSpec['x-ui-config'].endpoints[endpointKey]
-    const path = uiConfig.path
-    const method = uiConfig.method.toLowerCase()
-    const openApiOperation = openApiSpec.paths?.[path]?.[method]
+    const endpoints = openApiSpec['x-ui-config'].endpoints as Record<string, any>
+    if (!endpoints[endpointKey]) {
+      return undefined
+    }
+    const uiConfig = endpoints[endpointKey]
+    const path = uiConfig.path as string
+    const method = uiConfig.method.toLowerCase() as string
+    const paths = openApiSpec.paths as Record<string, Record<string, any>> | undefined
+    const openApiOperation = paths?.[path]?.[method]
     
     if (!openApiOperation) {
       return undefined
@@ -112,13 +117,16 @@ export default function SlugPage() {
 
   // Get auth config and security scheme
   const authConfig = useMemo(() => {
-    return openApiSpec['x-ui-config']?.auth || { mode: 'manual' }
+    const config = openApiSpec['x-ui-config']?.auth || { mode: 'manual' }
+    return config as { mode?: 'automatic' | 'manual'; schemeName?: string }
   }, [])
 
   const securityScheme = useMemo(() => {
+    const securitySchemes = openApiSpec.components?.securitySchemes as Record<string, any> | undefined
+    
     // First try to get scheme from config
-    if (authConfig.schemeName) {
-      const scheme = openApiSpec.components?.securitySchemes?.[authConfig.schemeName]
+    if (authConfig.schemeName && securitySchemes) {
+      const scheme = securitySchemes[authConfig.schemeName]
       if (scheme) return scheme
     }
     
@@ -127,8 +135,8 @@ export default function SlugPage() {
       // Get first security scheme from operation
       const firstSecurity = operation.security[0]
       const schemeName = Object.keys(firstSecurity)[0]
-      if (schemeName) {
-        return openApiSpec.components?.securitySchemes?.[schemeName]
+      if (schemeName && securitySchemes) {
+        return securitySchemes[schemeName]
       }
     }
     
@@ -136,13 +144,12 @@ export default function SlugPage() {
     if (openApiSpec.security && openApiSpec.security.length > 0) {
       const firstSecurity = openApiSpec.security[0]
       const schemeName = Object.keys(firstSecurity)[0]
-      if (schemeName) {
-        return openApiSpec.components?.securitySchemes?.[schemeName]
+      if (schemeName && securitySchemes) {
+        return securitySchemes[schemeName]
       }
     }
     
     // If security schemes exist, use the first one
-    const securitySchemes = openApiSpec.components?.securitySchemes
     if (securitySchemes && Object.keys(securitySchemes).length > 0) {
       const firstSchemeName = Object.keys(securitySchemes)[0]
       return securitySchemes[firstSchemeName]
@@ -174,28 +181,29 @@ export default function SlugPage() {
       
       // Get security scheme info
       let securityScheme: any = null
-      if (openApiSpec.components?.securitySchemes) {
+      const securitySchemes = openApiSpec.components?.securitySchemes as Record<string, any> | undefined
+      if (securitySchemes) {
         // Try to get from operation security first
         if (operation?.security && operation.security.length > 0) {
           const firstSecurity = operation.security[0]
           const schemeName = Object.keys(firstSecurity)[0]
-          if (schemeName && openApiSpec.components.securitySchemes[schemeName]) {
-            securityScheme = openApiSpec.components.securitySchemes[schemeName]
+          if (schemeName && securitySchemes[schemeName]) {
+            securityScheme = securitySchemes[schemeName]
           }
         }
         // Fall back to global security
         if (!securityScheme && openApiSpec.security && openApiSpec.security.length > 0) {
           const firstSecurity = openApiSpec.security[0]
           const schemeName = Object.keys(firstSecurity)[0]
-          if (schemeName && openApiSpec.components.securitySchemes[schemeName]) {
-            securityScheme = openApiSpec.components.securitySchemes[schemeName]
+          if (schemeName && securitySchemes[schemeName]) {
+            securityScheme = securitySchemes[schemeName]
           }
         }
         // Fall back to first security scheme
         if (!securityScheme) {
-          const schemeName = Object.keys(openApiSpec.components.securitySchemes)[0]
+          const schemeName = Object.keys(securitySchemes)[0]
           if (schemeName) {
-            securityScheme = openApiSpec.components.securitySchemes[schemeName]
+            securityScheme = securitySchemes[schemeName]
           }
         }
       }
@@ -318,7 +326,8 @@ export default function SlugPage() {
     const baseUrl = openApiSpec.servers?.[0]?.url || ''
     const method = endpointConfig.method
     const path = endpointConfig.path
-    const operation = openApiSpec.paths?.[path]?.[method.toLowerCase()]
+    const paths = openApiSpec.paths as Record<string, Record<string, any>> | undefined
+    const operation = paths?.[path]?.[method.toLowerCase()]
     
     // Build example URL with path parameters (use examples/defaults, not form values)
     let fullPath = path
@@ -380,11 +389,12 @@ export default function SlugPage() {
     // Authentication
     if (operation?.security || openApiSpec.security) {
       const security = operation?.security || openApiSpec.security
+      const securitySchemes = openApiSpec.components?.securitySchemes as Record<string, any> | undefined
       markdown += `## Authentication\n\n`
       if (security && security.length > 0) {
         for (const sec of security) {
           for (const [schemeName] of Object.entries(sec)) {
-            const scheme = openApiSpec.components?.securitySchemes?.[schemeName]
+            const scheme = securitySchemes?.[schemeName]
             if (scheme) {
               if (scheme.type === 'http' && scheme.scheme === 'bearer') {
                 markdown += `**Required:** Bearer token authentication\n\n`
@@ -436,7 +446,8 @@ export default function SlugPage() {
         let paramSchema = param.schema
         if (paramSchema?.$ref) {
           const refPath = paramSchema.$ref.replace('#/components/schemas/', '')
-          paramSchema = openApiSpec.components?.schemas?.[refPath] || paramSchema
+          const schemas = openApiSpec.components?.schemas as Record<string, any> | undefined
+          paramSchema = schemas?.[refPath] || paramSchema
         }
         
         let typeDisplay = paramSchema?.type || 'string'
@@ -477,7 +488,8 @@ export default function SlugPage() {
         let resolvedSchema = bodySchema
         if (bodySchema.$ref) {
           const refPath = bodySchema.$ref.replace('#/components/schemas/', '')
-          resolvedSchema = openApiSpec.components?.schemas?.[refPath] || bodySchema
+          const schemas = openApiSpec.components?.schemas as Record<string, any> | undefined
+          resolvedSchema = schemas?.[refPath] || bodySchema
         }
         
         if (resolvedSchema.description) {
@@ -496,7 +508,8 @@ export default function SlugPage() {
             let propSchema = prop as any
             if (propSchema.$ref) {
               const refPath = propSchema.$ref.replace('#/components/schemas/', '')
-              const refSchema = openApiSpec.components?.schemas?.[refPath]
+              const schemas = openApiSpec.components?.schemas as Record<string, any> | undefined
+              const refSchema = schemas?.[refPath]
               if (refSchema) {
                 propSchema = { ...refSchema, description: propSchema.description || refSchema.description }
               }
@@ -553,7 +566,8 @@ export default function SlugPage() {
           let responseSchema = responseContent.schema
           if (responseSchema.$ref) {
             const refPath = responseSchema.$ref.replace('#/components/schemas/', '')
-            responseSchema = openApiSpec.components?.schemas?.[refPath] || responseSchema
+            const schemas = openApiSpec.components?.schemas as Record<string, any> | undefined
+            responseSchema = schemas?.[refPath] || responseSchema
           }
           
           if (responseSchema.description) {

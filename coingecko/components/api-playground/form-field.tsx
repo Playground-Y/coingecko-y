@@ -449,10 +449,10 @@ export function FormField({ config, value, onChange }: FormFieldProps) {
         )
 
       case 'array':
-        return <ArrayFieldInput config={config} value={value as string[] | undefined} onChange={onChange ? (val: string[] | undefined) => onChange(val as any) : undefined} />
+        return <ArrayFieldInput config={config} value={value as string[] | undefined} onChange={onChange} />
       
       case 'multi-select':
-        return <MultiSelectField config={config} value={value as string[] | undefined} onChange={onChange as (value: string[] | undefined) => void} />
+        return <MultiSelectField config={config} value={value as string[] | undefined} onChange={onChange ? (val: string[] | undefined) => onChange(val as any) : undefined} />
       
       case 'object':
         return <ObjectField config={config} value={value as Record<string, any>} onChange={onChange as (value: Record<string, any>) => void} />

@@ -198,16 +198,19 @@ export default function LandingPage() {
 
     // Get popular endpoints
     const endpoints = openApiSpec['x-ui-config']?.endpoints || {}
-    const popularKeys = openApiSpec['x-ui-config']?.popularEndpoints || []
+    const uiConfig = openApiSpec['x-ui-config'] as any
+    const popularKeys = uiConfig?.popularEndpoints || []
     
     let endpointsToShow: PopularEndpoint[] = []
     
     if (popularKeys.length > 0) {
+      const endpointsRecord = endpoints as Record<string, any>
+      const paths = openApiSpec.paths as Record<string, Record<string, any>> | undefined
       endpointsToShow = popularKeys
         .map((key: string) => {
-          const endpoint = endpoints[key]
+          const endpoint = endpointsRecord[key]
           if (!endpoint) return null
-          const operation = openApiSpec.paths?.[endpoint.path]?.[endpoint.method.toLowerCase()]
+          const operation = paths?.[endpoint.path]?.[endpoint.method.toLowerCase()]
           const { exampleContent, responseExample } = extractExampleContent(operation, openApiSpec)
           
           return {
@@ -222,10 +225,12 @@ export default function LandingPage() {
         })
         .filter(Boolean) as PopularEndpoint[]
     } else {
-      const endpointKeys = Object.keys(endpoints)
+      const endpointsRecord = endpoints as Record<string, any>
+      const paths = openApiSpec.paths as Record<string, Record<string, any>> | undefined
+      const endpointKeys = Object.keys(endpointsRecord)
       endpointsToShow = endpointKeys.slice(0, 4).map(key => {
-        const endpoint = endpoints[key]
-        const operation = openApiSpec.paths?.[endpoint.path]?.[endpoint.method.toLowerCase()]
+        const endpoint = endpointsRecord[key]
+        const operation = paths?.[endpoint.path]?.[endpoint.method.toLowerCase()]
         const { exampleContent, responseExample } = extractExampleContent(operation, openApiSpec)
         
         return {
@@ -254,12 +259,14 @@ export default function LandingPage() {
     const endpointKeys = new Set(results.map(r => r.endpointKey).filter(Boolean))
     
     const endpoints = openApiSpec['x-ui-config']?.endpoints || {}
+    const endpointsRecord = endpoints as Record<string, any>
+    const paths = openApiSpec.paths as Record<string, Record<string, any>> | undefined
     const matchedEndpoints = Array.from(endpointKeys)
       .slice(0, 4)
       .map(key => {
-        const endpoint = endpoints[key]
+        const endpoint = endpointsRecord[key]
         if (!endpoint) return null
-        const operation = openApiSpec.paths?.[endpoint.path]?.[endpoint.method.toLowerCase()]
+        const operation = paths?.[endpoint.path]?.[endpoint.method.toLowerCase()]
         const { exampleContent, responseExample } = extractExampleContent(operation, openApiSpec)
         
         return {
@@ -282,7 +289,8 @@ export default function LandingPage() {
   }
 
   const apiTitle = openApiSpec.info?.title || 'API Playground'
-  const apiDescription = openApiSpec.info?.description || ''
+  const apiInfo = openApiSpec.info as any
+  const apiDescription = apiInfo?.description || ''
   const apiVersion = openApiSpec.info?.version || '1.0.0'
   const docsUrl = extractDocsUrl(openApiSpec as any)
 
@@ -367,7 +375,8 @@ export default function LandingPage() {
                 </h2>
                 <div className="grid grid-cols-2 gap-4">
                   {displayedEndpoints.map((endpoint) => {
-                    const operation = openApiSpec.paths?.[endpoint.path]?.[endpoint.method.toLowerCase()]
+                    const paths = openApiSpec.paths as Record<string, Record<string, any>> | undefined
+                    const operation = paths?.[endpoint.path]?.[endpoint.method.toLowerCase()]
                     const summary = operation?.summary || endpoint.title
                     const description = operation?.description || endpoint.description
                     
